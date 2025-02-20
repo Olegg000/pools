@@ -1,0 +1,123 @@
+import React, { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import {Rstore, setAuth} from "../../store/store";
+import { ERC20API } from "../../api/ERC20API";
+import Addresses from "../../MainAddresses.json";
+import { ethers } from "ethers";
+
+export const Users = () => {
+    const user = useSelector((state: Rstore) => state.auth); // Используем данные из Redux
+    const [users, setUsers] = useState<{
+        address: string;
+        role: "notLogin" | "user" | "owner";
+        balance: {
+            eth: string;
+            gerda: number;
+            krendel: number;
+            rtk: number;
+        };
+    }[]>([]);
+
+    useEffect(() => {
+        const fetchUsers = async () => {
+            try {
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
+                const accounts = await provider.send("eth_requestAccounts", []);
+                const datas: any[] = [];
+                await ERC20API.connect();
+                for (const account of accounts) {
+                    let role:any = "user";
+                    if (account == Addresses.ownerAddress) {
+                        role = "owner";
+                    }
+                    const ethBalanceBN = await provider.getBalance(account);
+                    const ethBalance = ethers.utils.formatEther(ethBalanceBN);
+                    const data = {
+                        address: account,
+                        role: role,
+                        balance: {
+                            eth: ethBalance.toString(),
+                            gerda: (await new ERC20API(Addresses.gerdaAddress).getBalance(account)).toString(),
+                            krendel: (await new ERC20API(Addresses.krendelAddress).getBalance(account)).toString(),
+                            rtk: (await new ERC20API(Addresses.rtkAddress).getBalance(account)).toString(),
+                        },
+                    };
+                    setAuth(data);
+                    datas.push(data);
+                }
+                setUsers(datas);
+
+            } catch (e) {
+                console.error(e);
+            }
+        };
+        fetchUsers();
+    }, []);
+
+    return (
+        <div>
+            {users.map((user) => (
+                <div key={user.address}>
+                    <p>Адрес: {user.address}</p>
+                    <p>Баланс ЕТХ: {user.balance.eth}</p>
+                    <p>Баланс герда: {user.balance.gerda}</p>
+                    <p>Баланс крендель: {user.balance.krendel}</p>
+                    <p>Баланс РТК: {user.balance.rtk}</p>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+
+
+
+const ethBalanceBN = await provider.getBalance(account);
+            const ethBalance = ethers.utils.formatEther(ethBalanceBN);
+            let balance = {eth: ethBalance, gerda: "0", krendel: "0",rtk: "0"};
+
+            try {
+                balance.gerda = (await new ERC20API(Addresses.gerdaAddress).getBalance(account)).toString()
+                balance.krendel = (await new ERC20API(Addresses.krendelAddress).getBalance(account)).toString()
+                balance.rtk = (await new ERC20API(Addresses.rtkAddress).getBalance(account)).toString()
+            } catch (e){
+                console.error(e)
+            }
+
+
+
+
+
+            static async getInfo():Promise<poolType[]> {
+                    const poolsInfo = [];
+                    const poolAddresses:string[] = await FactoryAPI.getAllPools();
+                    for (let i = 0; i < poolAddresses.length; ++i) {
+                        const poolAddress = poolAddresses[i];
+
+                        const pool = new PoolAPI(poolAddress);
+
+                        const poolName = await pool.getName();
+                        const poolOwner = await pool.getOwner();
+                        const poolReserves = await pool.getReversesNum();
+                        const poolTokenNames = await pool.getTokensNames();
+                        const poolTokensReservesInETH = await pool.getTokenReversesInETH();
+                        const poolTokenAddresses = await pool.getReversesAddresses();
+
+                        poolsInfo.push({
+                            address: poolAddress,
+                            name: poolName,
+                            owner: poolOwner,
+                            balance: {
+                                eth1: poolTokensReservesInETH[0],
+                                eth2: poolTokensReservesInETH[1],
+                                reserve1: poolReserves[0],
+                                reserve2: poolReserves[1],
+                                nameToken1: poolTokenNames[0],
+                                nameToken2: poolTokenNames[1],
+                            },
+                            addressToken1: poolTokenAddresses[0],
+                            addressToken2: poolTokenAddresses[1],
+                        });
+                    }
+                    return poolsInfo;
+                }

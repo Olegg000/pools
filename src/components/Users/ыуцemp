@@ -1,0 +1,96 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.18;
+
+import "./Pool.sol";
+import "./Factory.sol";
+
+contract Router {
+
+    Factory public factory;
+
+    mapping(address => address) poolTok;
+
+    constructor(address _factory) {
+        factory = Factory(_factory);
+    }
+
+    // Поиск пути обмена между двумя токенами
+    function findDeepPath(address tokenIn, address tokenOut) private view returns (address intermediateToken, address pool1, address pool2) {
+        address[] memory pools = factory.getAllPool();
+
+        // Проходим по всем пулам
+        for (uint i = 0; i < pools.length; i++) {
+            Pool pool = Pool(pools[i]);
+            address token1 = pool.token1();
+            address token2 = pool.token2();
+
+            // Проверка для пути глубиной 2 (путь через один промежуточный токен)
+            if (token1 != tokenIn && token1 != tokenOut) {
+                intermediateToken = token1;
+                if (token2 == tokenOut) {
+                    pool2 = pools[i];
+                    for (uint j = 0; j < pools.length; j++) {
+                        Pool tempPool = Pool(pools[j]);
+                        address tokenTemp1 = tempPool.token1();
+                        address tokenTemp2 = tempPool.token2();
+                        if (tokenTemp1 == tokenIn && intermediateToken == tokenTemp2 || tokenTemp2 == tokenIn && intermediateToken == tokenTemp1) {
+                            pool1 = pools[j];
+                            return (intermediateToken, pool1, pool2);
+                        }
+                    }
+                }
+            }
+            if (token2 != tokenIn && token2 != tokenOut) {
+                intermediateToken = token2;
+                if (token1 == tokenOut) {
+                    pool2 = pools[i];
+                    for (uint j = 0; j < pools.length; j++) {
+                        Pool tempPool = Pool(pools[j]);
+                        address tokenTemp1 = tempPool.token1();
+                        address tokenTemp2 = tempPool.token2();
+                        if (tokenTemp1 == tokenIn && intermediateToken == tokenTemp2 || tokenTemp2 == tokenIn && intermediateToken == tokenTemp1) {
+                            pool1 = pools[j];
+                            return (intermediateToken, pool1, pool2);
+                        }
+                    }
+                }
+            }
+        }
+        revert("No way");
+    }
+
+    function swapTokens(address tokenIn, address tokenOut, uint256 amountIn) public {
+        (address intermediateToken,address pool1, address pool2) = findDeepPath(tokenIn,tokenOut);
+        require(pool1 != pool2, "Way is Pool");
+        Pool Pool1 = Pool(pool1);
+        Pool Pool2 = Pool(pool2);
+        address token1Pool1 = Pool1.token1();
+        address token1Pool2 = Pool2.token1();
+
+        uint256 amountAfterFirstSwap;
+
+        ERC20(tokenIn).approve(address(this),amountIn);
+        ERC20(tokenIn).transferFrom(msg.sender,address(this),amountIn);
+
+        if (intermediateToken == token1Pool1){
+            Pool1.swapToken(1,amountIn);
+            amountAfterFirstSwap = ERC20(intermediateToken).balanceOf(address(this));
+        } else {
+            Pool1.swapToken(2,amountIn);
+            amountAfterFirstSwap = ERC20(intermediateToken).balanceOf(address(this));
+        }
+        require(amountAfterFirstSwap > 0, "First swap failed");
+
+        if (amountAfterFirstSwap != 0){
+            if (intermediateToken == token1Pool2){
+                Pool2.swapToken(1 ,amountAfterFirstSwap);
+                ERC20(tokenOut).approve(address(this),amountAfterFirstSwap);
+                ERC20(tokenOut).transfer(msg.sender, ERC20(tokenOut).balanceOf(address(this)));
+            } else {
+                Pool2.swapToken(2,amountAfterFirstSwap);
+                ERC20(tokenOut).approve(address(this),amountAfterFirstSwap);
+                ERC20(tokenOut).transfer(msg.sender, ERC20(tokenOut).balanceOf(address(this)));
+                }
+            }
+        }
+}
