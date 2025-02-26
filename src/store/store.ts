@@ -67,11 +67,6 @@ const stakingSlice = createSlice({
             state.reward = action.payload.reward;
             state.HowMuchStaking = action.payload.HowMuchStaking;
         },
-        delStaking: (state) => {
-            state.firstStakingTime = 0
-            state.reward = 0
-            state.HowMuchStaking = 0
-        }
     },
 })
 
